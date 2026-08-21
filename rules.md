@@ -19,3 +19,18 @@ Why this rule exists: phases are rollback points (`v0.1-phase0`, `v0.2-phase1`, 
 
 ---
 
+## R2 — Phase-bounded push
+
+Only push to `origin/main` (the github remote) when a phase is **completely running** — meaning its goal (§5 in `product.md`) is met, verified, and the slice is genuinely usable on its own.
+
+In practice:
+
+- A phase is "completely running" only when, on a fresh checkout of that commit, you can exercise every success path the phase promises, not just compile/build cleanly.
+- WIP commits, half-features, broken-by-design experiments, and "we'll fix it next phase" code stay on the local branch or in PRs — never on `main` once we've started tagging releases.
+- If a phase turns out to need multiple commits, those commits form a single PR (or, if working solo on a phase branch, a single fast-forward to `main` once the goal is hit).
+- Hotfixes outside a phase scope still go through normal phase flow: open the next phase boundary, don't bypass it.
+
+Why this rule exists: `origin/main` is the deployment target and the rollback boundary. Polluting it with half-built phases makes every "what's actually deployed right now?" question a lie, and erodes trust in the `main` branch as the source of truth. Locally you can move as fast as you want; github sees only finished work.
+
+---
+
