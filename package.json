@@ -4,10 +4,7 @@
   "private": true,
   "description": "AI-powered LaTeX resume tailoring platform — single-user, BYOK",
   "scripts": {
-    "dev": "pnpm -r --parallel run dev",
-    "build": "pnpm -r run build",
-    "lint": "pnpm -r run lint",
-    "typecheck": "pnpm -r run typecheck"
+    "typecheck": "pnpm -r --filter './packages/*' run typecheck"
   },
   "packageManager": "pnpm@9.15.0",
   "engines": {

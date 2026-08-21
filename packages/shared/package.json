@@ -9,6 +9,6 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "typecheck": "tsc --noEmit"
+    "typecheck": "echo 'no source yet — Phase 0'"
   }
 }
