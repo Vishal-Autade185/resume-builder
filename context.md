@@ -79,3 +79,9 @@ Full spec: `product.md`.
 - `rules.md` created with first rule **R1 — Phase independence**: each phase must work standalone; phase N cannot depend on unfinished / broken / reverted state of phase N-1; merging phase N must not break any prior phase's verified goal. Reason: phases are rollback points; coupling destroys bisect-ability and rollback story.
 - Initial attempted edit to inline R1 into the Conventions section of `context.md` was reverted — violated the append-only convention. Rule now lives only in `rules.md`, with `context.md` referencing it indirectly via the existing "read `rules.md` before making any non-trivial decision" line.
 
+### 2026-08-21 — Obsidian Map of Content (MOC) & Knowledge Graph created
+
+- Created `PROJECT_MAP.md` as the central navigation hub and Map of Content (MOC) for Obsidian and agent traversal.
+- Wired bidirectional `[[wikilinks]]` linking `product.md`, `requirements.md`, `rules.md`, `context.md`, and monorepo packages.
+- Added visual Mermaid diagrams for architecture flow, phase lifecycle (Phase 0–6), and agent context recovery protocols.
+
