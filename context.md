@@ -71,3 +71,11 @@ Full spec: `product.md`.
 - monorepo directories created as placeholders; actual app/complier/shared code lands in Phase 0 work.
 - **BLOCKER**: `gh auth status` reports invalid token (`/home/vishal/.config/gh/hosts.yml`). Cannot create GitHub repo or push until user runs `gh auth login -h github.com`. Doing that is on the user.
 
+### 2026-08-21 — GitHub push + first rule
+
+- Fine-grained PAT was created for `Vishal-Autade185`, initially missing `Administration: read and write` scope, blocking `gh repo create`. User added the scope, retry succeeded.
+- `gh repo create resume-builder --private --source=. --remote=origin --push` succeeded. Repo: `https://github.com/Vishal-Autade185/resume-builder` (private, default branch `main`).
+- Two commits on `main`: `5c6ad9b` (bootstrap) and `cad5e4d` (placeholder script cleanup).
+- `rules.md` created with first rule **R1 — Phase independence**: each phase must work standalone; phase N cannot depend on unfinished / broken / reverted state of phase N-1; merging phase N must not break any prior phase's verified goal. Reason: phases are rollback points; coupling destroys bisect-ability and rollback story.
+- Initial attempted edit to inline R1 into the Conventions section of `context.md` was reverted — violated the append-only convention. Rule now lives only in `rules.md`, with `context.md` referencing it indirectly via the existing "read `rules.md` before making any non-trivial decision" line.
+
