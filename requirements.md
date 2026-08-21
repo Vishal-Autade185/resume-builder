@@ -111,13 +111,9 @@ Tell me "use fake sample data" and I'll seed with `Jane Doe / Sample University 
 
 ---
 
-## Phase 0 — LATER needs (do NOT need these yet)
+## Phase 1 — LATER needs (do NOT need these yet)
 
-These gate **deployment**, not local phase 0. Get them when phase 0 is verified working locally and we're ready to deploy.
-
-- **R0.4 — Vercel account** (free tier). https://vercel.com/signup. Needed when we deploy `apps/web`. Skip until I say "let's deploy."
-- **R0.5 — Render or Fly.io account** (free tier). https://render.com or https://fly.io. Needed when we deploy `services/compiler`. Skip until I say "let's deploy."
-- **R0.6 — Vercel + Render/Fly access tokens**. Created inside each dashboard once the accounts exist. Skip until deploy.
+These are the deploy-side needs that became part of phase 1 rather than phase 0. Listed here for completeness so nothing's hidden. Skip until I say "let's deploy."
 
 ---
 
@@ -168,6 +164,8 @@ Phase 2 = JD input (text/pdf/docx) + AI tailoring. First phase that touches AI.
 
 **What I need from you for phase 2:** at least one API key + default model picks.
 
+- **R2.3 — Sample JDs for parser testing** (optional but useful). Phase 2 parses JDs from raw text, `.pdf`, and `.docx`. To verify the parser with real input rather than synthetic, send me 2-3 sample JDs you actually care about (one of each format if you have them). If you'd rather I use synthetic JDs for testing, say "synthetic JDs are fine."
+
 ---
 
 ## Phase 3 — Style controls + company research needs
@@ -202,6 +200,16 @@ Phase 5 = generalize the template parser, support multiple `.zip` templates, gal
 - **R5.1 — Multiple LaTeX templates to upload**. You'll need at least 2-3 templates to test the gallery and the auto-parse fallback. Either:
   - Point me at templates you've collected (Dropbox folder / drive folder / local paths), or
   - Tell me "use a curated set" and I'll grab 3 well-known public ones (Jake's Resume, AltaCV, Deedy's resume, etc.).
+- **R5.1a — What each template `.zip` should contain** (so you can prep them all at once):
+  - The main `.tex` file (e.g. `main.tex`, `resume.tex`) — the entry point.
+  - Any `.cls`, `.sty`, `.bst` files the main `.tex` references (custom document class / packages / bibliography style).
+  - Any subfolders referenced by the `.tex` (e.g. `sections/`, `assets/`).
+  - **Do NOT include** compiled output (`*.pdf`, `*.aux`, `*.log`, `*.out`) or the `.zip` itself.
+  - **Zip command** (run from the template's directory):
+    ```bash
+    zip -r template-name.zip . -x "*.pdf" "*.aux" "*.log" "*.out" "*.zip"
+    ```
+  - If your template uses custom fonts or images, include them too — tectonic will fetch packages from the network, but local assets must be in the zip.
 - **R5.2 — Template naming/tagging convention**. How do you want to find a template later? Default: free-text name + tags (e.g. "academic", "industry-1page", "industry-2page", "creative"). Tell me if you want a different shape.
 
 **What I need from you for phase 5:** template sources + naming/tagging convention.
