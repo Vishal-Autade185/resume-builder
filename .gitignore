@@ -40,5 +40,20 @@ supabase/.temp
 *.pdf
 !docs/**/*.pdf
 
-# docker build artifacts
+# secrets-bearing user files — NEVER commit. pasted in working dir during
+# phase prep, may contain api keys, jd contents, personal data.
+*.docx
+*.zip
+requiremnt_file*
+requirements_file*
+api_key*
+secret*
+.env.*.local
+.env.local
+
+# latex compile artifacts
 services/compiler/.tectonic-cache/
+**/*.aux
+**/*.log
+**/*.out
+**/*.synctex.gz
