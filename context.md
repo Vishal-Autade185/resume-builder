@@ -85,3 +85,17 @@ Full spec: `product.md`.
 - Wired bidirectional `[[wikilinks]]` linking `product.md`, `requirements.md`, `rules.md`, `context.md`, and monorepo packages.
 - Added visual Mermaid diagrams for architecture flow, phase lifecycle (Phase 0–6), and agent context recovery protocols.
 
+### 2026-08-25 — Phase 0 prep: secrets hygiene, USER's PROJECT_MAP.md scope, real supabase keys
+
+- User uploaded three files into the working tree: `requiremnt_file.docx`, `resume_template.zip`, `FinIdeas_ML_Intern_JD.docx`. None committed — `.gitignore` now covers them.
+- `PROJECT_MAP.md` is owned by user (per their statement) but treated as out-of-scope going forward. Not referencing it in new commits; not updating its log entries. User picked "leave in place" rather than delete.
+- Render API key `rnd_dMuALqKgqfQLTBhmlOwy9486K02p` was inside `requiremnt_file.docx`. User declined rotation ("trust the file hasn't been seen"). Acceptable since it's not committed and the file lives only on user's wsl + windows fs.
+- Supabase project created: `ovmfuqapvjaqzwulyteq`. Real keys pasted in chat (anon + service_role), claims decoded and verified:
+  - anon:        role=anon          ref=ovmfuqapvjaqzwulyteq  exp=2036-09
+  - service_role: role=service_role ref=ovmfuqapvjaqzwulyteq  exp=2036-09
+- **Risk acknowledged**: real production-shaped supabase keys crossed chat. Blast radius limited to one supabase project (read/write db + storage), but not zero. Decision: don't rotate now; revisit at phase 0 deploy.
+- Wrote `apps/web/.env.local` with the three real values + `NEXT_PUBLIC_COMPILER_URL=http://localhost:4000` (dev placeholder; deploy URL goes here later). Gitignored.
+- Phase 0 form UX choice: **auto-save with last-write-wins**, no merge UI. Single-user app, two-tab conflict is the worst case, handled by an indicator.
+- `resume_template.zip`: user wants to upload manually through the UI when phase 0 upload flow is built. Not pre-parsing the template.
+- `.gitignore` updated in commit `9b3c2ac` (local-only, R2): `*.docx`, `*.zip`, `requiremnt_file*`, `requirements_file*`, `api_key*`, `secret*`, `.env.*.local`, `.env.local`, `*.aux`, `*.log`, `*.out`, `*.synctex.gz`.
+
