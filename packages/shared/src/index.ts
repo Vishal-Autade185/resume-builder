@@ -12,3 +12,4 @@ export * from "./achievement";
 export * from "./data-bank";
 export * from "./job-description";
 export * from "./template";
+export * from "./resume-version";

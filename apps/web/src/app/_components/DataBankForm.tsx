@@ -1,12 +1,14 @@
 /**
- * DataBankForm — the entire phase 0 editor. Renders the personal block +
- * editable lists for education/experience/projects/skills/certifications.
+ * DataBankForm — phase 0/1 editor. Renders the personal block + editable
+ * lists for education/experience/projects/skills/certifications. Hosts the
+ * versions dropdown in a header above the columns.
  *
  * Auto-save runs the whole bank through /api/data-bank on every change
- * (debounced 600ms via useAutoSave). This is the user's career data — they
- * expect it to persist the moment they stop typing.
- *
- * No "Save" button. No "Submit". Pure docs-style editing.
+ * (debounced 600ms via useAutoSave) — BUT ONLY while in live edit mode
+ * (no version loaded). When a version is loaded, the form operates on
+ * the snapshot and changes are local to that view until the user
+ * explicitly saves a new version or returns to live edit. This is phase 1
+ * MVP scope; "edit a loaded version in-place" is a follow-up.
  */
 "use client";
 import { useEffect, useState } from "react";
@@ -22,6 +24,9 @@ import type {
 import { emptyDataBank } from "@resume-builder/shared";
 import { useAutoSave } from "../_lib/use-auto-save";
 import { usePdfPreview } from "../_lib/use-pdf-preview";
+import { useVersions } from "../_lib/use-versions";
+import { useSelection } from "../_lib/use-selection";
+import { VersionDropdown } from "./VersionDropdown";
 
 const inputStyle: React.CSSProperties = {
   width: "100%",
@@ -50,6 +55,33 @@ const sectionStyle: React.CSSProperties = {
 
 function uid(): string {
   return crypto.randomUUID();
+}
+
+function IncludeToggle({
+  included,
+  onToggle,
+}: {
+  included: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <label
+      style={{
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        fontSize: 12,
+        color: included ? "#1f3a5f" : "#999",
+        cursor: "pointer",
+        padding: "2px 6px",
+        borderRadius: 3,
+        background: included ? "#eef4fb" : "#f5f5f5",
+      }}
+    >
+      <input type="checkbox" checked={included} onChange={onToggle} />
+      {included ? "include in version" : "excluded from version"}
+    </label>
+  );
 }
 
 function PersonalBlock({
@@ -91,9 +123,13 @@ function PersonalBlock({
 function EducationList({
   items,
   onChange,
+  isIncluded,
+  onToggleInclude,
 }: {
   items: Education[];
   onChange: (items: Education[]) => void;
+  isIncluded: (id: string) => boolean;
+  onToggleInclude: (id: string) => void;
 }) {
   return (
     <div style={sectionStyle}>
@@ -106,6 +142,10 @@ function EducationList({
       </div>
       {items.map((e, i) => (
         <div key={e.id} style={{ borderTop: i > 0 ? "1px solid #eee" : "none", paddingTop: i > 0 ? 8 : 0, marginTop: i > 0 ? 8 : 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <IncludeToggle included={isIncluded(e.id)} onToggle={() => onToggleInclude(e.id)} />
+            <button style={{ fontSize: 12 }} onClick={() => onChange(items.filter((_, j) => j !== i))}>remove</button>
+          </div>
           <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}>
             <div>
               <label style={labelStyle}>Institution</label>
@@ -149,9 +189,13 @@ function EducationList({
 function ExperienceList({
   items,
   onChange,
+  isIncluded,
+  onToggleInclude,
 }: {
   items: Experience[];
   onChange: (items: Experience[]) => void;
+  isIncluded: (id: string) => boolean;
+  onToggleInclude: (id: string) => void;
 }) {
   return (
     <div style={sectionStyle}>
@@ -164,6 +208,10 @@ function ExperienceList({
       </div>
       {items.map((e, i) => (
         <div key={e.id} style={{ borderTop: i > 0 ? "1px solid #eee" : "none", paddingTop: i > 0 ? 8 : 0, marginTop: i > 0 ? 8 : 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <IncludeToggle included={isIncluded(e.id)} onToggle={() => onToggleInclude(e.id)} />
+            <button style={{ fontSize: 12 }} onClick={() => onChange(items.filter((_, j) => j !== i))}>remove</button>
+          </div>
           <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}>
             <div>
               <label style={labelStyle}>Company</label>
@@ -204,9 +252,13 @@ function ExperienceList({
 function ProjectList({
   items,
   onChange,
+  isIncluded,
+  onToggleInclude,
 }: {
   items: Project[];
   onChange: (items: Project[]) => void;
+  isIncluded: (id: string) => boolean;
+  onToggleInclude: (id: string) => void;
 }) {
   return (
     <div style={sectionStyle}>
@@ -219,6 +271,10 @@ function ProjectList({
       </div>
       {items.map((e, i) => (
         <div key={e.id} style={{ borderTop: i > 0 ? "1px solid #eee" : "none", paddingTop: i > 0 ? 8 : 0, marginTop: i > 0 ? 8 : 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <IncludeToggle included={isIncluded(e.id)} onToggle={() => onToggleInclude(e.id)} />
+            <button style={{ fontSize: 12 }} onClick={() => onChange(items.filter((_, j) => j !== i))}>remove</button>
+          </div>
           <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}>
             <div>
               <label style={labelStyle}>Name</label>
@@ -259,9 +315,13 @@ function ProjectList({
 function SkillList({
   items,
   onChange,
+  isIncluded,
+  onToggleInclude,
 }: {
   items: Skill[];
   onChange: (items: Skill[]) => void;
+  isIncluded: (id: string) => boolean;
+  onToggleInclude: (id: string) => void;
 }) {
   return (
     <div style={sectionStyle}>
@@ -271,6 +331,10 @@ function SkillList({
       </div>
       {items.map((e, i) => (
         <div key={e.id} style={{ borderTop: i > 0 ? "1px solid #eee" : "none", paddingTop: i > 0 ? 8 : 0, marginTop: i > 0 ? 8 : 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <IncludeToggle included={isIncluded(e.id)} onToggle={() => onToggleInclude(e.id)} />
+            <button style={{ fontSize: 12 }} onClick={() => onChange(items.filter((_, j) => j !== i))}>remove</button>
+          </div>
           <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 2fr" }}>
             <div>
               <label style={labelStyle}>Category</label>
@@ -296,9 +360,13 @@ function SkillList({
 function CertificationList({
   items,
   onChange,
+  isIncluded,
+  onToggleInclude,
 }: {
   items: Certification[];
   onChange: (items: Certification[]) => void;
+  isIncluded: (id: string) => boolean;
+  onToggleInclude: (id: string) => void;
 }) {
   return (
     <div style={sectionStyle}>
@@ -308,6 +376,10 @@ function CertificationList({
       </div>
       {items.map((e, i) => (
         <div key={e.id} style={{ borderTop: i > 0 ? "1px solid #eee" : "none", paddingTop: i > 0 ? 8 : 0, marginTop: i > 0 ? 8 : 0 }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 6 }}>
+            <IncludeToggle included={isIncluded(e.id)} onToggle={() => onToggleInclude(e.id)} />
+            <button style={{ fontSize: 12 }} onClick={() => onChange(items.filter((_, j) => j !== i))}>remove</button>
+          </div>
           <div style={{ display: "grid", gap: 8, gridTemplateColumns: "1fr 1fr" }}>
             <div>
               <label style={labelStyle}>Name</label>
@@ -331,9 +403,18 @@ function CertificationList({
 export function DataBankForm() {
   const [bank, setBank] = useState<DataBank>(emptyDataBank());
   const [loading, setLoading] = useState(true);
-  const { status, lastSavedAt } = useAutoSave(bank, !loading);
-  const { pdfUrl, compiling, error } = usePdfPreview(bank, !loading);
+  const versionsApi = useVersions();
+  const sel = useSelection();
 
+  // Auto-save is enabled only in live edit mode (no version loaded).
+  // Phase 1 MVP: viewing a version is read-only until the user explicitly
+  // saves a new version or returns to live edit.
+  const editable = versionsApi.currentVersionLabel === null;
+  const { status, lastSavedAt } = useAutoSave(bank, !loading && editable);
+  const { pdfUrl, compiling, error } = usePdfPreview(bank, sel.selection, !loading);
+
+  // Initial data bank load. Only on mount; subsequent loads come from
+  // version snapshots (loadVersion) or "back to live edit" (refetchLive).
   useEffect(() => {
     fetch("/api/data-bank")
       .then((r) => r.json())
@@ -341,45 +422,126 @@ export function DataBankForm() {
       .finally(() => setLoading(false));
   }, []);
 
+  // When a version is loaded, swap the form to its snapshot and apply the
+  // version's saved selection.
+  async function handleLoad(id: string) {
+    const detail = await versionsApi.load(id);
+    if (detail) {
+      setBank(detail.dataBankSnapshot);
+      sel.replaceSelection(detail.selection ?? {});
+    }
+  }
+
+  // Duplicate: load + save as new. The hook returns the new version; we
+  // swap the form to the new (snapshot, label) so the user can keep editing.
+  async function handleDuplicate(id: string) {
+    const detail = await versionsApi.duplicate(id);
+    if (detail) {
+      setBank(detail.dataBankSnapshot);
+      sel.replaceSelection(detail.selection ?? {});
+    }
+  }
+
+  // "Back to live edit" - clear version, re-fetch live data bank.
+  async function handleClear() {
+    versionsApi.clear();
+    sel.resetToAllOn();
+    const res = await fetch("/api/data-bank");
+    const body = await res.json();
+    setBank(body.data ?? emptyDataBank());
+  }
+
+  // Save current bank as a new version, with the current selection.
+  // After save, stay in live edit mode - the new version is persisted
+  // in storage + db, but the form continues to operate on the live data
+  // bank. This matches "save as" semantics: you create a checkpoint,
+  // you don't get teleported into it.
+  async function handleSave(label: string) {
+    await versionsApi.save(label, sel.selection);
+  }
+
   const update = (patch: Partial<DataBank>) => setBank({ ...bank, ...patch });
 
   return (
-    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, padding: 16 }}>
-      <div>
-        <div style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ margin: 0 }}>Data Bank</h2>
-          <span style={{ fontSize: 12, color: "#666" }}>
-            {status === "saving" ? "saving..." : status === "saved" && lastSavedAt ? `saved ${lastSavedAt.toLocaleTimeString()}` : status === "error" ? "save failed" : ""}
-          </span>
+    <div style={{ padding: 16 }}>
+      <div style={{
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        marginBottom: 12, padding: "0.6rem 1rem", background: "white",
+        borderRadius: 6, boxShadow: "0 1px 3px rgba(0,0,0,0.06)",
+      }}>
+        <div>
+          <strong>Mode:</strong>{" "}
+          {versionsApi.currentVersionLabel ? (
+            <span style={{ color: "#1f3a5f" }}>viewing "{versionsApi.currentVersionLabel}"</span>
+          ) : (
+            <span>live edit</span>
+          )}
         </div>
-        <PersonalBlock personal={bank.personal}
-          onChange={(p) => update({ personal: p })} />
-        <EducationList items={bank.education}
-          onChange={(items) => update({ education: items })} />
-        <ExperienceList items={bank.experience}
-          onChange={(items) => update({ experience: items })} />
-        <ProjectList items={bank.projects}
-          onChange={(items) => update({ projects: items })} />
-        <SkillList items={bank.skills}
-          onChange={(items) => update({ skills: items })} />
-        <CertificationList items={bank.certifications}
-          onChange={(items) => update({ certifications: items })} />
+        <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+          <span style={{ fontSize: 12, color: "#666" }}>
+            {!editable && "(changes here don't auto-save; save as a new version to keep)"}
+            {editable && status === "saving" && "saving..."}
+            {editable && status === "saved" && lastSavedAt && `saved ${lastSavedAt.toLocaleTimeString()}`}
+            {editable && status === "error" && "save failed"}
+          </span>
+          <VersionDropdown
+            currentLabel={versionsApi.currentVersionLabel}
+            versions={versionsApi.versions}
+            loading={versionsApi.loading}
+            saving={versionsApi.saving}
+            onSave={handleSave}
+            onLoad={handleLoad}
+            onDuplicate={handleDuplicate}
+            onDelete={async (id) => { await versionsApi.remove(id); }}
+            onClear={handleClear}
+          />
+        </div>
       </div>
-      <div>
-        <h2 style={{ margin: "0 0 12px" }}>Live preview</h2>
-        <div style={{ background: "white", borderRadius: 6, padding: 16, minHeight: 600, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
-          {error && <div style={{ color: "#b00020", fontSize: 13 }}>compile error: {error}</div>}
-          {compiling && !error && <div style={{ color: "#666", fontSize: 13 }}>compiling...</div>}
-          {pdfUrl && (
-            <iframe
-              src={pdfUrl}
-              style={{ width: "100%", height: "80vh", border: "none" }}
-              title="Resume preview"
-            />
-          )}
-          {!pdfUrl && !compiling && !error && (
-            <div style={{ color: "#999", fontSize: 13 }}>fill in some data and the pdf will render here.</div>
-          )}
+
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
+        <div>
+          <div style={{ marginBottom: 12, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+            <h2 style={{ margin: 0 }}>Data Bank</h2>
+          </div>
+          <PersonalBlock personal={bank.personal}
+            onChange={(p) => update({ personal: p })} />
+          <EducationList items={bank.education}
+            onChange={(items) => update({ education: items })}
+            isIncluded={(id) => sel.isIncluded("education", id, bank.education)}
+            onToggleInclude={(id) => sel.toggle("education", id, bank.education)} />
+          <ExperienceList items={bank.experience}
+            onChange={(items) => update({ experience: items })}
+            isIncluded={(id) => sel.isIncluded("experience", id, bank.experience)}
+            onToggleInclude={(id) => sel.toggle("experience", id, bank.experience)} />
+          <ProjectList items={bank.projects}
+            onChange={(items) => update({ projects: items })}
+            isIncluded={(id) => sel.isIncluded("projects", id, bank.projects)}
+            onToggleInclude={(id) => sel.toggle("projects", id, bank.projects)} />
+          <SkillList items={bank.skills}
+            onChange={(items) => update({ skills: items })}
+            isIncluded={(id) => sel.isIncluded("skills", id, bank.skills)}
+            onToggleInclude={(id) => sel.toggle("skills", id, bank.skills)} />
+          <CertificationList items={bank.certifications}
+            onChange={(items) => update({ certifications: items })}
+            isIncluded={(id) => sel.isIncluded("certifications", id, bank.certifications)}
+            onToggleInclude={(id) => sel.toggle("certifications", id, bank.certifications)} />
+        </div>
+        <div>
+          <h2 style={{ margin: "0 0 12px" }}>Live preview</h2>
+          <div style={{ background: "white", borderRadius: 6, padding: 16, minHeight: 600, boxShadow: "0 1px 3px rgba(0,0,0,0.06)" }}>
+            {error && <div style={{ color: "#b00020", fontSize: 13 }}>compile error: {error}</div>}
+            {compiling && !error && <div style={{ color: "#666", fontSize: 13 }}>compiling...</div>}
+            {pdfUrl && (
+              <iframe
+                src={pdfUrl}
+                style={{ width: "100%", height: "80vh", border: "none" }}
+                title="Resume preview"
+              />
+            )}
+            {!pdfUrl && !compiling && !error && (
+              <div style={{ color: "#999", fontSize: 13 }}>fill in some data and the pdf will render here.</div>
+            )}
+          </div>
         </div>
       </div>
     </div>
