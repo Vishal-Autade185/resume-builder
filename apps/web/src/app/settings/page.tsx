@@ -11,7 +11,9 @@
 import { useEffect, useState } from "react";
 import {
   type AISettings,
+  type ResumeStyle,
   type Provider,
+  type JdMatchScore,
   DEFAULT_MODELS,
   PROVIDER_ENV_VAR,
 } from "@resume-builder/shared";
@@ -50,6 +52,9 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [savedAt, setSavedAt] = useState<Date | null>(null);
+  const [style, setStyle] = useState<ResumeStyle | null>(null);
+  const [savingStyle, setSavingStyle] = useState(false);
+  const [styleSavedAt, setStyleSavedAt] = useState<Date | null>(null);
 
   useEffect(() => {
     fetch("/api/settings")
@@ -60,6 +65,10 @@ export default function SettingsPage() {
       })
       .catch((e) => setError(String(e)))
       .finally(() => setLoading(false));
+    fetch("/api/settings/style")
+      .then((r) => r.json())
+      .then((body) => setStyle(body.data))
+      .catch(() => setStyle(null));
   }, []);
 
   async function save() {
@@ -84,6 +93,27 @@ export default function SettingsPage() {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function saveStyle() {
+    if (!style) return;
+    setSavingStyle(true);
+    try {
+      const res = await fetch("/api/settings/style", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(style),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `save failed (${res.status})`);
+      }
+      setStyleSavedAt(new Date());
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSavingStyle(false);
     }
   }
 
@@ -207,6 +237,57 @@ export default function SettingsPage() {
           </p>
         </div>
       </div>
+
+      {style && (
+        <div style={cardStyle}>
+          <h3 style={{ margin: "0 0 0.5rem" }}>Resume style</h3>
+          <p style={{ color: "#666", fontSize: 13, margin: "0 0 0.75rem" }}>
+            Toggles that steer AI rewriting per product.md section 2.6.
+          </p>
+          {(
+            [
+              { key: "focusOnCore", label: "Focus on Core", desc: "Trim to most relevant items only." },
+              { key: "quantify",   label: "Quantify",     desc: "Push every bullet toward a measurable outcome." },
+              { key: "noOrphans",  label: "No Orphans",    desc: "Avoid single-line orphan/widow bullets across page breaks." },
+              { key: "ats",         label: "ATS Best Practice", desc: "Action-verb first, consistent tense, no graphics-only content." },
+            ] as { key: keyof ResumeStyle; label: string; desc: string }[]
+          ).map((t) => (
+            <label key={t.key} style={{
+              display: "flex", alignItems: "flex-start", gap: 8, padding: "6px 0",
+              cursor: "pointer",
+            }}>
+              <input
+                type="checkbox"
+                checked={style[t.key]}
+                onChange={(e) => setStyle({ ...style, [t.key]: e.target.checked })}
+                style={{ marginTop: 4 }}
+              />
+              <div>
+                <div style={{ fontSize: 13, fontWeight: 600 }}>{t.label}</div>
+                <div style={{ fontSize: 12, color: "#666" }}>{t.desc}</div>
+              </div>
+            </label>
+          ))}
+          <button
+            onClick={saveStyle}
+            disabled={savingStyle}
+            style={{
+              marginTop: 8,
+              padding: "0.4rem 0.8rem", fontSize: 13,
+              background: savingStyle ? "#888" : "#1f3a5f",
+              color: "white", border: "none", borderRadius: 4,
+              cursor: savingStyle ? "wait" : "pointer",
+            }}
+          >
+            {savingStyle ? "saving..." : "save style"}
+          </button>
+          {styleSavedAt && (
+            <span style={{ fontSize: 12, color: "#666", marginLeft: 12 }}>
+              saved {styleSavedAt.toLocaleTimeString()}
+            </span>
+          )}
+        </div>
+      )}
 
       <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
         <button

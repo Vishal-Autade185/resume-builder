@@ -12,7 +12,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { use } from "react";
-import type { ProposedChange } from "@resume-builder/shared";
+import type { ProposedChange, JdMatchScore } from "@resume-builder/shared";
 
 type JdSummary = {
   id: string;
@@ -47,6 +47,7 @@ export default function JdDetailPage(props: { params: Promise<{ id: string }> })
   const [jd, setJd] = useState<JdSummary | null>(null);
   const [rawText, setRawText] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [matchScore, setMatchScore] = useState<JdMatchScore | null>(null);
   const [tailoring, setTailoring] = useState(false);
   const [tailorResult, setTailorResult] = useState<TailorResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -58,12 +59,19 @@ export default function JdDetailPage(props: { params: Promise<{ id: string }> })
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const res = await fetch(`/api/jd/${id}/text`);
+      const [jdRes, scoreRes] = await Promise.all([
+        fetch(`/api/jd/${id}/text`),
+        fetch(`/api/jd/${id}/match`),
+      ]);
       if (cancelled) return;
-      if (res.ok) {
-        const body = await res.json();
+      if (jdRes.ok) {
+        const body = await jdRes.json();
         setJd(body.jd);
         setRawText(body.rawText);
+      }
+      if (scoreRes.ok) {
+        const body = await scoreRes.json();
+        setMatchScore(body.data);
       }
       setLoading(false);
     })();
@@ -174,6 +182,8 @@ export default function JdDetailPage(props: { params: Promise<{ id: string }> })
           {rawText ?? "(loading…)"}
         </pre>
       </div>
+
+      {matchScore && <MatchScorePanel score={matchScore} />}
 
       <div style={cardStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: tailorResult ? 12 : 0 }}>
@@ -324,6 +334,50 @@ function ProposedChangeCard(props: {
         <div style={{ marginTop: 8, fontSize: 11, color: "#888" }}>
           source: <code>{change.source.field}</code> — <em>{change.source.original}</em>
         </div>
+      )}
+    </div>
+  );
+}
+function MatchScorePanel({ score }: { score: JdMatchScore }) {
+  const pct = score.overlapPercent;
+  // Color: red<40, orange<70, green>=70. Honest signal.
+  const color = pct >= 70 ? "#1a3" : pct >= 40 ? "#a60" : "#b00020";
+  return (
+    <div style={cardStyle}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
+        <h3 style={{ margin: 0 }}>JD match score</h3>
+        <div style={{ fontSize: 28, fontWeight: 700, color }}>
+          {pct}%
+        </div>
+      </div>
+      <p style={{ color: "#666", fontSize: 13, margin: "0.25rem 0 0.75rem" }}>
+        {score.matched.length} of {score.jdKeywords.length} keywords present in your resume.
+        Missing keywords are candidates for new bullets or skill additions.
+      </p>
+      {score.matched.length > 0 && (
+        <details style={{ marginBottom: 8 }}>
+          <summary style={{ cursor: "pointer", fontSize: 13 }}>
+            matched ({score.matched.length})
+          </summary>
+          <div style={{ fontSize: 12, marginTop: 4, color: "#1a3" }}>
+            {score.matched.join(", ")}
+          </div>
+        </details>
+      )}
+      {score.missingFromResume.length > 0 && (
+        <details style={{ marginBottom: 8 }}>
+          <summary style={{ cursor: "pointer", fontSize: 13 }}>
+            missing from resume ({score.missingFromResume.length})
+          </summary>
+          <div style={{ fontSize: 12, marginTop: 4, color: "#a60" }}>
+            {score.missingFromResume.join(", ")}
+          </div>
+          <div style={{ fontSize: 11, color: "#888", marginTop: 4 }}>
+            These keywords exist in the JD but not in your data bank.
+            Run "Tailor with AI" or add the relevant skill/project
+            to your data bank to address them.
+          </div>
+        </details>
       )}
     </div>
   );
