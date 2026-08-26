@@ -9,7 +9,8 @@ export default function HomePage() {
         display: "flex", justifyContent: "space-between", alignItems: "center",
       }}>
         <h1 style={{ margin: 0, fontSize: "1.1rem" }}>Resume Builder</h1>
-        <nav style={{ fontSize: 13 }}>
+        <nav style={{ fontSize: 13, display: "flex", gap: 16 }}>
+          <a href="/jd" style={{ color: "#9bc" }}>job descriptions</a>
           <a href="/settings" style={{ color: "#9bc" }}>settings</a>
         </nav>
       </header>
