@@ -13,3 +13,4 @@ export * from "./data-bank";
 export * from "./job-description";
 export * from "./template";
 export * from "./resume-version";
+export * from "./ai-settings";
