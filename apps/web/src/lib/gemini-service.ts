@@ -50,8 +50,9 @@ export async function callGeminiForTailoring(args: {
   apiKey: string;
   model: string;
   style?: ResumeStyle;
+  prompt?: string;
 }): Promise<ProposedChange[]> {
-  const prompt = buildPrompt({
+  const prompt = args.prompt ?? buildPrompt({
     jd: args.jd,
     bank: args.bank,
     style: args.style ?? defaultResumeStyle(),
@@ -189,6 +190,55 @@ function styleRulesBlock(style: ResumeStyle): string {
   return rules.join("\n");
 }
 
+/** OpenAI-compatible chat-completion API call. Used by groq + nvidia.
+ *  Both providers serve the same endpoint shape with different baseUrls.
+ *  Forces JSON output via response_format where supported (groq yes,
+ *  nvidia depends on model — fall back to a hard prompt directive). */
+export async function callOpenaiCompatibleForTailoring(args: {
+  jd: JobDescription;
+  bank: DataBank;
+  apiKey: string;
+  model: string;
+  prompt: string;
+  baseUrl: string;
+}): Promise<ProposedChange[]> {
+  const req = {
+    model: args.model,
+    messages: [
+      {
+        role: "system" as const,
+        content:
+          "You respond with a single JSON object, no prose, no markdown fences.",
+      },
+      { role: "user" as const, content: args.prompt },
+    ],
+    // groq supports this; nvidia models vary. If nvidia rejects it the
+    // error propagates up to /api/tailor as a 502 — surface in the ui
+    // and let the user switch model or provider.
+    response_format: { type: "json_object" as const },
+    temperature: 0.2,
+  };
+  const res = await fetch(`${args.baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${args.apiKey}`,
+    },
+    body: JSON.stringify(req),
+  });
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(
+      `${args.baseUrl} ${res.status}: ${body.slice(0, 300)}`,
+    );
+  }
+  const body = (await res.json()) as {
+    choices?: { message?: { content?: string } }[];
+  };
+  const text = body.choices?.[0]?.message?.content ?? "[]";
+  return parseAndValidate(text);
+}
+
 /** Parse the model's JSON response and validate each change against the schema. */
 function parseAndValidate(text: string): ProposedChange[] {
   // gemini occasionally wraps the json in ```json ... ``` fences. Strip them.
@@ -220,7 +270,8 @@ function parseAndValidate(text: string): ProposedChange[] {
   return out;
 }
 
-/** Provider dispatch. Phase 2 supports gemini only. */
+/** Provider dispatch. Phase 4 supports gemini, groq, nvidia.
+ *  openai + anthropic remain stubbed for future work. */
 export async function callAIForTailoring(args: {
   provider: Provider;
   jd: JobDescription;
@@ -235,6 +286,11 @@ export async function callAIForTailoring(args: {
       `no api key configured. set ${envVar} in apps/web/.env.local`,
     );
   }
+  const prompt = buildPrompt({
+    jd: args.jd,
+    bank: args.bank,
+    style: args.style ?? defaultResumeStyle(),
+  });
   switch (args.provider) {
     case "gemini":
       return callGeminiForTailoring({
@@ -243,12 +299,32 @@ export async function callAIForTailoring(args: {
         apiKey,
         model: args.settings.model,
         style: args.style,
+        prompt,
+      });
+    case "groq":
+      // api.groq.com/openai/v1 - free tier, ~30 req/min
+      return callOpenaiCompatibleForTailoring({
+        jd: args.jd,
+        bank: args.bank,
+        apiKey,
+        model: args.settings.model,
+        prompt,
+        baseUrl: "https://api.groq.com/openai/v1",
+      });
+    case "nvidia":
+      // integrate.api.nvidia.com/v1 - free credits on signup
+      return callOpenaiCompatibleForTailoring({
+        jd: args.jd,
+        bank: args.bank,
+        apiKey,
+        model: args.settings.model,
+        prompt,
+        baseUrl: "https://integrate.api.nvidia.com/v1",
       });
     case "openai":
     case "anthropic":
-    case "nvidia":
       throw new Error(
-        `provider ${args.provider} is not wired up yet. phase 2 ships gemini only.`,
+        `provider ${args.provider} is not wired up yet. phase 4 ships gemini/groq/nvidia.`,
       );
   }
 }

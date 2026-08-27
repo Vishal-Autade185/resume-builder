@@ -12,7 +12,13 @@
  */
 import { z } from "zod";
 
-export const ProviderSchema = z.enum(["gemini", "openai", "anthropic", "nvidia"]);
+export const ProviderSchema = z.enum([
+  "gemini",
+  "openai",
+  "anthropic",
+  "nvidia",
+  "groq",
+]);
 export type Provider = z.infer<typeof ProviderSchema>;
 
 /** Default model picks per provider. Users can override in settings. */
@@ -24,7 +30,18 @@ export const DEFAULT_MODELS: Record<Provider, string> = {
   gemini: "gemini-2.5-flash",
   openai: "gpt-4o-mini",
   anthropic: "claude-haiku-4-5",
-  nvidia: "meta/llama-3.1-70b-instruct",
+  // NVIDIA NIM (build.nvidia.com) — openai-compatible api at
+  //   https://integrate.api.nvidia.com/v1, free credits on signup.
+  //   nvidia/nemotron-3-super-120b-a12b: current llama-family model
+  //   with JSON output + reliable grounding. Adds ~5-10s of internal
+  //   reasoning (returns reasoning_content). Quality comparable to
+  //   gemini-2.5-flash.
+  nvidia: "nvidia/nemotron-3-super-120b-a12b",
+  // Groq — openai-compatible api at
+  //   https://api.groq.com/openai/v1, free tier (30 req/min).
+  //   openai/gpt-oss-120b is their highest-quality 120b open-source-ish
+  //   model. Returns grounded JSON reliably.
+  groq: "openai/gpt-oss-120b",
 };
 
 /** Per-provider env var names that hold the BYOK API key. */
@@ -33,6 +50,7 @@ export const PROVIDER_ENV_VAR: Record<Provider, string> = {
   openai:    "OPENAI_API_KEY",
   anthropic: "ANTHROPIC_API_KEY",
   nvidia:    "NVIDIA_API_KEY",
+  groq:      "GROQ_API_KEY",
 };
 
 /**
