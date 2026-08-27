@@ -213,6 +213,9 @@ export async function POST(req: Request) {
     // Render + upload the PDF. Non-fatal on failure: version is persisted
     // without a pdf, user can re-tailor to regenerate.
     try {
+      // For AI-tailored versions we use the built-in article renderer
+      // (which is template-agnostic). For template-aware AI tailoring,
+      // use /api/versions with templateId set after the rewrite loop.
       const tex = renderDataBankToLatex(bank, { selection });
       const compilerUrl = process.env.NEXT_PUBLIC_COMPILER_URL ?? "http://localhost:4000";
       const compileRes = await fetch(`${compilerUrl}/compile`, {

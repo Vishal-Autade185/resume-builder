@@ -20,6 +20,7 @@ import {
   type DataBank,
 } from "@resume-builder/shared";
 import { renderDataBankToLatex } from "@/lib/render-latex";
+import { renderTemplate } from "@/lib/render-template";
 import { countPdfPages } from "@/lib/count-pages";
 import { createServiceClient } from "@/lib/supabase-service";
 import { serializeVersion } from "@/lib/version-row";
@@ -90,8 +91,38 @@ export async function POST(req: Request) {
   const { id: _i, user_id: _u, created_at: _ca, updated_at: _ua, ...bank } = bankRes.data;
   const dataBankSnapshot = bank as unknown as DataBank;
 
-  // 2. Compile the filtered .tex.
-  const tex = renderDataBankToLatex(dataBankSnapshot, { selection });
+  // 2. Compile the filtered .tex. If a template_id was supplied, use
+  //    the uploaded template's tex source with data spliced in. Otherwise
+  //    fall back to the built-in article class renderer.
+  let tex: string;
+  if (templateId) {
+    const { data: tmplRow } = await supabase
+      .from("resume_templates")
+      .select("tex_source")
+      .eq("id", templateId)
+      .eq("user_id", USER_ID)
+      .maybeSingle();
+    if (!tmplRow) {
+      return NextResponse.json(
+        { error: "template not found" },
+        { status: 404 },
+      );
+    }
+    try {
+      tex = renderTemplate({
+        templateTex: tmplRow.tex_source,
+        bank: dataBankSnapshot,
+        selection,
+      });
+    } catch (e) {
+      return NextResponse.json(
+        { error: "template render failed: " + (e instanceof Error ? e.message : String(e)) },
+        { status: 400 },
+      );
+    }
+  } else {
+    tex = renderDataBankToLatex(dataBankSnapshot, { selection });
+  }
   const compilerUrl =
     process.env.NEXT_PUBLIC_COMPILER_URL ?? "http://localhost:4000";
   let pdfBytes: Buffer;

@@ -22,6 +22,9 @@ importers:
       '@supabase/supabase-js':
         specifier: 2.45.4
         version: 2.45.4
+      adm-zip:
+        specifier: ^0.6.0
+        version: 0.6.0
       clsx:
         specifier: 2.1.1
         version: 2.1.1
@@ -809,6 +812,10 @@ packages:
     resolution: {integrity: sha512-lGq+9yr1/GuAWaVYIHRjvvySG5/4VfKIvC8EWxStPdcDh/Ka7FG3twP6v4d5BkravUilhIAsG4Qj83t02LWUPQ==}
     engines: {node: '>=0.4.0'}
     hasBin: true
+
+  adm-zip@0.6.0:
+    resolution: {integrity: sha512-XleryMhbuksdKtofnWZ9Sk+4CUTbms4Mb/EU32SZwToAyZ5RgVos/ki8n+yr0LWHOGKuakbXTuuYNHLQjhddgg==}
+    engines: {node: '>=14.0'}
 
   ajv-formats@3.0.1:
     resolution: {integrity: sha512-8iUql50EUR+uUcdRQ3HDqa6EVyo3docL8g5WJ3FNcWmu62IbkGUue/pEyLBW8VGKKucTPgqeks4fIU1DA4yowQ==}
@@ -2985,6 +2992,8 @@ snapshots:
       acorn: 8.18.0
 
   acorn@8.18.0: {}
+
+  adm-zip@0.6.0: {}
 
   ajv-formats@3.0.1(ajv@8.20.0):
     optionalDependencies:

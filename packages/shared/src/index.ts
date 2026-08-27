@@ -17,3 +17,4 @@ export * from "./ai-settings";
 export * from "./proposed-change";
 export * from "./resume-style";
 export * from "./jd-match";
+export * from "./template";

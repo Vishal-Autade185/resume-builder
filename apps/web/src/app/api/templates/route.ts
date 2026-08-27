@@ -1,84 +1,129 @@
 /**
- * POST /api/templates — accepts a multipart .zip upload, stores it in
- * Supabase Storage, registers metadata in the templates table.
- * GET  /api/templates — lists templates for the current user.
+ * GET  /api/templates - list stored templates.
+ * POST /api/templates - upload a new template (.zip containing main.tex).
  *
- * Phase 0: stores one template. fieldMapId is hardcoded to "phase0-default".
+ * Upload expects a multipart form with:
+ *   - file: a .zip file. The first .tex file inside is extracted.
+ *   - name (optional): a human-friendly label. Defaults to the zip
+ *     filename minus extension.
+ *
+ * The server extracts the .tex, runs the auto-detect parser, and
+ * stores both the raw .tex and the detection result in the row. The
+ * /api/templates/[id] endpoint returns the raw .tex when needed
+ * (e.g. for rendering into a version).
  */
 import { NextResponse } from "next/server";
-import JSZip from "jszip";
+import AdmZip from "adm-zip";
 import { randomUUID } from "node:crypto";
 import { createServiceClient } from "@/lib/supabase-service";
+import { detectTemplateFields, findPdftexOnlyMacros, looksLikeLatex } from "@/lib/template-parser";
 
 const USER_ID = "00000000-0000-0000-0000-000000000000";
-const FIELD_MAP_ID = "phase0-default";
 
 export async function GET() {
   const supabase = createServiceClient();
   const { data, error } = await supabase
-    .from("templates")
-    .select("*")
+    .from("resume_templates")
+    .select("id, name, detected_fields, created_at")
     .eq("user_id", USER_ID)
     .order("created_at", { ascending: false });
-
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-  return NextResponse.json({ data });
+  return NextResponse.json({
+    data: (data ?? []).map((t) => ({
+      id: t.id,
+      name: t.name,
+      detectedFields: t.detected_fields,
+      createdAt: t.created_at,
+    })),
+  });
 }
 
 export async function POST(req: Request) {
-  const form = await req.formData();
+  const form = await req.formData().catch(() => null);
+  if (!form) {
+    return NextResponse.json(
+      { error: "expected multipart/form-data with a 'file' field" },
+      { status: 400 },
+    );
+  }
   const file = form.get("file");
-  const name = form.get("name");
-  const mainFile = form.get("mainFile");
-
-  if (!(file instanceof File) || typeof name !== "string" || typeof mainFile !== "string") {
-    return NextResponse.json(
-      { error: "expected form fields: file, name, mainFile" },
-      { status: 400 },
-    );
+  const nameField = form.get("name");
+  if (!(file instanceof File)) {
+    return NextResponse.json({ error: "missing 'file' field" }, { status: 400 });
   }
-
-  // Validate: must be a valid zip with the named main file inside.
   const buf = Buffer.from(await file.arrayBuffer());
-  let zip: JSZip;
-  try {
-    zip = await JSZip.loadAsync(buf);
-  } catch {
-    return NextResponse.json({ error: "not a valid .zip" }, { status: 400 });
-  }
-  if (!zip.file(mainFile)) {
+  if (!file.name.toLowerCase().endsWith(".zip")) {
     return NextResponse.json(
-      { error: `main file "${mainFile}" not found inside zip` },
+      { error: "only .zip uploads supported (must contain main.tex inside)" },
       { status: 400 },
     );
   }
+
+  // Extract the first .tex file from the zip.
+  let tex: string;
+  try {
+    const zip = new AdmZip(buf);
+    const texEntry = zip
+      .getEntries()
+      .find((e) => e.entryName.toLowerCase().endsWith(".tex"));
+    if (!texEntry) {
+      return NextResponse.json(
+        { error: "zip does not contain a .tex file" },
+        { status: 400 },
+      );
+    }
+    tex = texEntry.getData().toString("utf8");
+  } catch (e) {
+    return NextResponse.json(
+      { error: "failed to extract zip: " + (e instanceof Error ? e.message : String(e)) },
+      { status: 400 },
+    );
+  }
+
+  if (!looksLikeLatex(tex)) {
+    return NextResponse.json(
+      {
+        error:
+          "extracted .tex doesn't look like a latex file (missing \\documentclass or \\begin{document})",
+      },
+      { status: 400 },
+    );
+  }
+
+  const detected = detectTemplateFields(tex);
+  const pdftexMacros = findPdftexOnlyMacros(tex);
+  const name =
+    typeof nameField === "string" && nameField.trim().length > 0
+      ? nameField.trim()
+      : file.name.replace(/\.zip$/i, "");
 
   const id = randomUUID();
-  const storagePath = `${USER_ID}/${id}.zip`;
   const supabase = createServiceClient();
-
-  const { error: uploadErr } = await supabase.storage
-    .from("templates")
-    .upload(storagePath, buf, { contentType: "application/zip", upsert: true });
-
-  if (uploadErr) {
-    return NextResponse.json({ error: uploadErr.message }, { status: 500 });
-  }
-
-  const { error: dbErr } = await supabase.from("templates").insert({
+  const { error: insertErr } = await supabase.from("resume_templates").insert({
     id,
     user_id: USER_ID,
     name,
-    storage_path: storagePath,
-    main_file: mainFile,
-    field_map_id: FIELD_MAP_ID,
+    tex_source: tex,
+    detected_fields: {
+      ...detected,
+      pdftexOnlyMacros: pdftexMacros,
+    },
+    storage_path: null,
   });
-
-  if (dbErr) {
-    return NextResponse.json({ error: dbErr.message }, { status: 500 });
+  if (insertErr) {
+    return NextResponse.json({ error: insertErr.message }, { status: 500 });
   }
-
-  return NextResponse.json({ id, name, mainFile });
+  return NextResponse.json({
+    data: {
+      id,
+      name,
+      detectedFields: {
+        ...detected,
+        pdftexOnlyMacros: pdftexMacros,
+      },
+      createdAt: new Date().toISOString(),
+    },
+  });
 }
