@@ -20,6 +20,7 @@ import {
   type DataBank,
 } from "@resume-builder/shared";
 import { renderDataBankToLatex } from "@/lib/render-latex";
+import { countPdfPages } from "@/lib/count-pages";
 import { createServiceClient } from "@/lib/supabase-service";
 import { serializeVersion } from "@/lib/version-row";
 
@@ -29,7 +30,7 @@ export async function GET() {
   const supabase = createServiceClient();
   const { data, error } = await supabase
     .from("resume_versions")
-    .select("id, label, template_id, pdf_storage_path, created_at")
+    .select("id, label, template_id, pdf_storage_path, page_count, created_at")
     .eq("user_id", USER_ID)
     .order("created_at", { ascending: false });
 
@@ -42,6 +43,7 @@ export async function GET() {
       label: v.label,
       templateId: v.template_id,
       pdfStoragePath: v.pdf_storage_path,
+      pageCount: v.page_count,
       createdAt: v.created_at,
     })),
   });
@@ -169,10 +171,13 @@ export async function POST(req: Request) {
     );
   }
 
-  // 5. Update the row with the storage path.
+  // 5. Update the row with the storage path + page count.
+  const pageCount = await countPdfPages(pdfBytes);
+  const update: Record<string, unknown> = { pdf_storage_path: storagePath };
+  if (pageCount !== null) update.page_count = pageCount;
   const { data: updated, error: updateErr } = await supabase
     .from("resume_versions")
-    .update({ pdf_storage_path: storagePath })
+    .update(update)
     .eq("id", id)
     .select()
     .single();

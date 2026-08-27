@@ -5,6 +5,7 @@
  */
 import { NextResponse } from "next/server";
 import { createServiceClient } from "@/lib/supabase-service";
+import { serializeVersion } from "@/lib/version-row";
 
 const USER_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -28,16 +29,7 @@ export async function GET(
     return NextResponse.json({ error: "version not found" }, { status: 404 });
   }
   return NextResponse.json({
-    data: {
-      id: data.id,
-      label: data.label,
-      dataBankSnapshot: data.data_bank_snapshot,
-      selection: data.selection,
-      templateId: data.template_id,
-      styleSettings: data.style_settings ?? {},
-      pdfStoragePath: data.pdf_storage_path,
-      createdAt: data.created_at,
-    },
+    data: serializeVersion(data),
   });
 }
 

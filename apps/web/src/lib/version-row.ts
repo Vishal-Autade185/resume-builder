@@ -13,6 +13,7 @@ export type ResumeVersionRow = {
   template_id: string | null;
   style_settings: Record<string, unknown>;
   pdf_storage_path: string | null;
+  page_count: number | null;
   created_at: string;
 };
 
@@ -25,6 +26,7 @@ export function serializeVersion(row: ResumeVersionRow) {
     templateId: row.template_id,
     styleSettings: row.style_settings ?? {},
     pdfStoragePath: row.pdf_storage_path,
+    pageCount: row.page_count ?? null,
     createdAt: row.created_at,
   };
 }

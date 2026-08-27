@@ -20,6 +20,7 @@ export type VersionSummary = {
   id: string;
   label: string;
   pdfStoragePath: string | null;
+  pageCount: number | null;
   createdAt: string;
 };
 
@@ -31,6 +32,7 @@ export type VersionDetail = {
   templateId: string | null;
   styleSettings: Record<string, unknown>;
   pdfStoragePath: string | null;
+  pageCount: number | null;
   createdAt: string;
 };
 

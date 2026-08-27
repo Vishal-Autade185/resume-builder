@@ -17,11 +17,13 @@ import { randomUUID } from "node:crypto";
 import type {
   DataBank,
   ProposedChange,
+  ResumeStyle,
   Selection,
 } from "@resume-builder/shared";
-import { emptyDataBank } from "@resume-builder/shared";
+import { emptyDataBank, defaultResumeStyle } from "@resume-builder/shared";
 import { createServiceClient } from "@/lib/supabase-service";
 import { renderDataBankToLatex } from "@/lib/render-latex";
+import { countPdfPages } from "@/lib/count-pages";
 
 const USER_ID = "00000000-0000-0000-0000-000000000000";
 
@@ -38,6 +40,22 @@ export async function POST(req: Request) {
   }
 
   const supabase = createServiceClient();
+
+  // Load style toggles so we can validate accepted rewrites against them.
+  const { data: styleRow } = await supabase
+    .from("resume_style_settings")
+    .select("*")
+    .eq("user_id", USER_ID)
+    .maybeSingle();
+  const style: ResumeStyle = styleRow
+    ? {
+        focusOnCore: styleRow.focus_on_core,
+        quantify: styleRow.quantify,
+        noOrphans: styleRow.no_orphans,
+        ats: styleRow.ats,
+      }
+    : defaultResumeStyle();
+
   const { data: bankRow, error: bankErr } = await supabase
     .from("data_bank")
     .select("*")
@@ -50,6 +68,7 @@ export async function POST(req: Request) {
 
   let applied = 0;
   const rewritten: Accepted[] = [];
+  const styleWarnings: string[] = [];
 
   for (const change of accepted) {
     if (change.kind.startsWith("select_") || change.kind.startsWith("deselect_")) {
@@ -59,6 +78,19 @@ export async function POST(req: Request) {
       continue;
     }
     if (!change.entityId || change.before == null || change.after == null) continue;
+
+    // Style validation before applying. Returns warnings for soft
+    // violations; returns false to skip this rewrite entirely on hard
+    // violations (currently: quantify dropping a metric).
+    const validation = validateAgainstStyle(change, style);
+    if (!validation.ok) {
+      styleWarnings.push(`${change.summary}: ${validation.reason}`);
+      continue;
+    }
+    if (validation.warning) {
+      styleWarnings.push(`${change.summary}: ${validation.warning}`);
+    }
+
     if (change.kind === "rewrite_experience_bullet") {
       const exp = bank.experience.find((e) => e.id === change.entityId);
       if (exp) {
@@ -196,9 +228,14 @@ export async function POST(req: Request) {
           .from("pdfs")
           .upload(storagePath, pdfBytes, { contentType: "application/pdf", upsert: true });
         if (!up.error) {
+          // Count pages so the versions dropdown can render a page badge
+          // and the future overflow enforcement has something to check.
+          const pageCount = await countPdfPages(pdfBytes);
+          const update: Record<string, unknown> = { pdf_storage_path: storagePath };
+          if (pageCount !== null) update.page_count = pageCount;
           await supabase
             .from("resume_versions")
-            .update({ pdf_storage_path: storagePath })
+            .update(update)
             .eq("id", id);
         }
       }
@@ -207,7 +244,7 @@ export async function POST(req: Request) {
     }
   }
 
-  return NextResponse.json({ ok: true, applied });
+  return NextResponse.json({ ok: true, applied, warnings: styleWarnings });
 }
 
 function rowToBank(row: Record<string, unknown>): DataBank {
@@ -230,4 +267,62 @@ function collectionIds(bank: DataBank, k: keyof DataBank): string[] {
   return coll
     .map((item) => (item as { id?: string }).id)
     .filter((id): id is string => typeof id === "string");
+}
+/**
+ * Validate an accepted rewrite against the user's style rules.
+ *
+ * Hard violations (returns ok:false) reject the rewrite:
+ *   - quantify: true + rewrite dropped a number/percent from the source
+ *
+ * Soft violations (returns ok:true + warning) emit a warning to the
+ * user but still apply the change:
+ *   - ats: true + rewrite doesn't start with a known action verb
+ *   - the warning shows up in the apply response so the user sees it
+ *     in the toast and can manually edit later if they want
+ */
+function validateAgainstStyle(
+  change: Accepted,
+  style: ResumeStyle,
+): { ok: boolean; reason?: string; warning?: string } {
+  const before = change.before ?? "";
+  const after = change.after ?? "";
+
+  // quantify: source had a metric (number/percent) and the rewrite dropped it
+  if (style.quantify && hasMetric(before) && !hasMetric(after)) {
+    return {
+      ok: false,
+      reason: "quantify: rewrite dropped a metric from the source",
+    };
+  }
+
+  // ats: rewrite doesn't start with a known action verb (soft warning)
+  if (style.ats && !startsWithActionVerb(after)) {
+    return {
+      ok: true,
+      warning:
+        "ats: rewrite doesn't start with a strong action verb (consider: built, shipped, optimized, reduced, designed, ...)",
+    };
+  }
+
+  return { ok: true };
+}
+
+function hasMetric(s: string): boolean {
+  return /(\d+(\.\d+)?%|\$\d+|\b\d+(\.\d+)?\b)/.test(s);
+}
+
+const ACTION_VERBS = new Set([
+  "built", "shipped", "designed", "implemented", "deployed", "optimized",
+  "reduced", "increased", "cut", "created", "developed", "launched",
+  "led", "managed", "authored", "engineered", "trained", "tuned",
+  "migrated", "refactored", "automated", "streamlined", "accelerated",
+  "pioneered", "founded", "spearheaded", "orchestrated", "delivered",
+  "architected", "integrated", "enabled", "drove", "produced", "cut",
+  "fine-tuned", "validated", "evaluated", "wrote", "ran", "cut",
+  "achieved", "cut",
+]);
+
+function startsWithActionVerb(s: string): boolean {
+  const first = s.trim().split(/\s+/)[0]?.toLowerCase().replace(/[.,;:!?]$/, "") ?? "";
+  return ACTION_VERBS.has(first);
 }

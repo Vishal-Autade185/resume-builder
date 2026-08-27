@@ -15,6 +15,7 @@ export type VersionSummary = {
   id: string;
   label: string;
   pdfStoragePath: string | null;
+  pageCount: number | null;
   createdAt: string;
 };
 
@@ -211,6 +212,18 @@ export function VersionDropdown({
                     <div style={{ fontSize: 11, color: "#888" }}>
                       {new Date(v.createdAt).toLocaleString()}
                       {v.pdfStoragePath ? "" : " (no pdf)"}
+                      {v.pageCount !== null && v.pageCount !== undefined &&
+                        (v.pageCount === 1
+                          ? " · 1 page"
+                          : ` · ${v.pageCount} pages`)}{" "}
+                      {v.pageCount !== null && v.pageCount !== undefined && v.pageCount > 1 && (
+                        <span style={{
+                          marginLeft: 4, fontSize: 10, color: "#a60",
+                          fontWeight: 600,
+                        }}>
+                          ⚠ overflow
+                        </span>
+                      )}
                     </div>
                   </button>
                   <button
