@@ -58,6 +58,8 @@ export default function JdDetailPage(props: { params: Promise<{ id: string }> })
   const [applied, setApplied] = useState(false);
   const [research, setResearch] = useState<CompanyResearch | null>(null);
   const [researching, setResearching] = useState(false);
+  const [applyingResearch, setApplyingResearch] = useState(false);
+  const [researchApplied, setResearchApplied] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -178,10 +180,33 @@ export default function JdDetailPage(props: { params: Promise<{ id: string }> })
       }
       const body = await res.json();
       setResearch(body.data);
+      setResearchApplied(false);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     } finally {
       setResearching(false);
+    }
+  }
+
+  async function applyResearch() {
+    if (!research) return;
+    setApplyingResearch(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/company-research/apply", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ summary: research.summary }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `apply failed (${res.status})`);
+      }
+      setResearchApplied(true);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setApplyingResearch(false);
     }
   }
 
@@ -307,6 +332,32 @@ export default function JdDetailPage(props: { params: Promise<{ id: string }> })
                 </ul>
               </div>
             )}
+            <div style={{ marginTop: 12, display: "flex", gap: 8, alignItems: "center" }}>
+              <button
+                onClick={applyResearch}
+                disabled={applyingResearch || researchApplied}
+                style={{
+                  padding: "0.4rem 0.8rem",
+                  fontSize: 13,
+                  background: researchApplied ? "#888" : "#1f3a5f",
+                  color: "white",
+                  border: "none",
+                  borderRadius: 4,
+                  cursor: applyingResearch ? "wait" : "pointer",
+                }}
+              >
+                {applyingResearch
+                  ? "applying..."
+                  : researchApplied
+                    ? "applied ✓ (saved to data bank)"
+                    : "Use this as my summary"}
+              </button>
+              {researchApplied && (
+                <span style={{ fontSize: 12, color: "#1a3" }}>
+                  saved to data bank. next version will include it.
+                </span>
+              )}
+            </div>
             <details style={{ marginTop: 8 }}>
               <summary style={{ cursor: "pointer", fontSize: 12, color: "#666" }}>
                 sources ({research.sources.length})

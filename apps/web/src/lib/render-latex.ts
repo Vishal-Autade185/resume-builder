@@ -20,7 +20,7 @@ function section(title: string, body: string): string {
   if (!body) return "";
   return (
     "\n\\section*{" + escapeLatex(title) + "}" +
-    "\n" + body + "\n"
+    "\n" + escapeLatex(body) + "\n"
   );
 }
 
@@ -146,6 +146,9 @@ export function renderDataBankToLatex(
 
   const parts: string[] = [preamble, "\\begin{document}\n"];
   parts.push(renderPersonal(bank.personal));
+  if (bank.personal.summary && bank.personal.summary.trim().length > 0) {
+    parts.push(section("Summary", bank.personal.summary));
+  }
   parts.push(section("Education", renderEducation(education)));
   parts.push(section("Experience", renderExperience(experience)));
   parts.push(section("Projects", renderProjects(projects)));

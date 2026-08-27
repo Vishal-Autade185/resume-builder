@@ -92,7 +92,7 @@ export async function callGeminiForTailoring(args: {
  * The prompt. Kept structured so the model sees exactly the data bank
  * shape and produces a ProposedChange[] we can validate.
  */
-function buildPrompt({
+export function buildPrompt({
   jd,
   bank,
   style,
@@ -457,4 +457,70 @@ function extractEntityCandidates(text: string): string[] {
   let m;
   while ((m = re.exec(text)) !== null) out.push(m[1]);
   return out;
+}
+/**
+ /**
+ * Trim-to-1-page prompt. Same data-bank formatting as buildPrompt,
+ * but the goal is length reduction instead of jd alignment.
+ *
+ * Used by /api/versions/[id]/trim when the user has a multi-page
+ * version and wants AI suggestions for which items to drop or
+ * shorten so it fits in 1 page.
+ */
+export function buildTrimPrompt(args: { bank: DataBank }): string {
+  const bankForModel = {
+    personal: args.bank.personal,
+    education: args.bank.education.map((e) => ({
+      id: e.id, institution: e.institution, degree: e.degree,
+      startDate: e.startDate, endDate: e.endDate, gpa: e.gpa, details: e.details,
+    })),
+    experience: args.bank.experience.map((e) => ({
+      id: e.id, company: e.company, role: e.role,
+      startDate: e.startDate, endDate: e.endDate, location: e.location,
+      bullets: e.bullets,
+    })),
+    projects: args.bank.projects.map((p) => ({
+      id: p.id, name: p.name, description: p.description,
+      techStack: p.techStack, link: p.link, impact: p.impact,
+    })),
+    skills: args.bank.skills,
+    certifications: args.bank.certifications,
+  };
+
+  return `You are helping trim a resume to fit on 1 page.
+
+GOAL: reduce the rendered pdf from 2+ pages down to 1 page. Do not
+add new facts; only remove or shorten existing content.
+
+ANTI-HALLUCINATION RULES (must follow strictly):
+1. You may only DESELECT items that are clearly lower-priority, or
+   REWRITE existing bullet/description strings to be more concise.
+2. You may NOT invent new facts or add metrics that aren't already
+   present.
+3. Preserve the resume's structure. Keep the strongest evidence per
+   category. Bias toward keeping recent + relevant items; remove
+   older or generic items.
+
+OUTPUT FORMAT (strict JSON, no prose, no markdown fences):
+Return a single JSON object with the standard ProposedChange[] shape:
+{
+  "changes": [
+    {
+      "kind": "deselect_experience" | "deselect_project" | "deselect_education" | "deselect_skill" | "deselect_certification" | "rewrite_experience_bullet" | "rewrite_project_description" | "rewrite_project_impact",
+      "entityId": "<id of the data bank item>",
+      "summary": "<short label>",
+      "before": "<current text or null>",
+      "after": "<new shorter text or null>",
+      "source": null,
+      "rationale": "<one sentence: which page is this trimming + why this item is the lowest priority>"
+    }
+  ]
+}
+
+DATA BANK (source of truth - only these items exist):
+${JSON.stringify(bankForModel, null, 2)}
+
+Now produce 3-8 high-impact trim suggestions. Prioritize: deselect old
+or generic items first; only rewrite bullets if the deselect pool is
+empty. Output only the JSON, no prose.`;
 }

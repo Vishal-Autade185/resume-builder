@@ -32,6 +32,7 @@ export const emptyDataBank = (): DataBank => ({
     phone: "",
     location: null,
     links: [],
+    summary: "",
   },
   education: [],
   experience: [],

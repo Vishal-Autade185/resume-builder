@@ -17,6 +17,12 @@ export const PersonalInfoSchema = z.object({
       }),
     )
     .default([]),
+  /**
+   * Free-form 2-4 sentence summary rendered as the resume's
+   * \section{SUMMARY} block. Phase 4 accepts research-derived text
+   * into this field via /api/company-research/apply.
+   */
+  summary: z.string().default(""),
 });
 
 export type PersonalInfo = z.infer<typeof PersonalInfoSchema>;
