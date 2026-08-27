@@ -12,7 +12,8 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { use } from "react";
-import type { ProposedChange, JdMatchScore } from "@resume-builder/shared";
+import type { ProposedChange, JdMatchScore, CompanyResearch } from "@resume-builder/shared";
+import { extractCompanyName } from "@/lib/extract-company";
 
 type JdSummary = {
   id: string;
@@ -55,6 +56,8 @@ export default function JdDetailPage(props: { params: Promise<{ id: string }> })
   const [decisions, setDecisions] = useState<Record<string, "accepted" | "rejected">>({});
   const [applying, setApplying] = useState(false);
   const [applied, setApplied] = useState(false);
+  const [research, setResearch] = useState<CompanyResearch | null>(null);
+  const [researching, setResearching] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -152,6 +155,36 @@ export default function JdDetailPage(props: { params: Promise<{ id: string }> })
     ? tailorResult.changes.length - acceptedCount
     : 0;
 
+  const derivedCompanyName =
+    rawText ? extractCompanyName(rawText) : "";
+
+  async function runResearch(nameOverride?: string) {
+    const name = (nameOverride ?? derivedCompanyName).trim();
+    if (!name) {
+      setError("could not detect company name in jd. try entering it manually.");
+      return;
+    }
+    setResearching(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/company-research", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ companyName: name, jdId: id }),
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `research failed (${res.status})`);
+      }
+      const body = await res.json();
+      setResearch(body.data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setResearching(false);
+    }
+  }
+
   return (
     <main style={{ padding: 16, maxWidth: 800, margin: "0 auto" }}>
       <header style={{ marginBottom: 16 }}>
@@ -184,6 +217,115 @@ export default function JdDetailPage(props: { params: Promise<{ id: string }> })
       </div>
 
       {matchScore && <MatchScorePanel score={matchScore} />}
+
+      <div style={cardStyle}>
+        <h3 style={{ margin: "0 0 0.5rem" }}>Company research</h3>
+        <p style={{ color: "#666", fontSize: 13, margin: "0 0 0.75rem" }}>
+          Searches the web for company info (mission, values, recent
+          news) and surfaces jd-to-company alignment. Use this to
+          tailor your summary section to what the company cares about.
+        </p>
+        {derivedCompanyName ? (
+          <div style={{ fontSize: 13, color: "#1f3a5f", marginBottom: 8 }}>
+            detected company: <strong>{derivedCompanyName}</strong>
+          </div>
+        ) : (
+          <p style={{ fontSize: 12, color: "#a60", marginBottom: 8 }}>
+            could not detect a company name in this jd's text. you can
+            still research by entering a name below.
+          </p>
+        )}
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <button
+            onClick={() => runResearch()}
+            disabled={researching || (!derivedCompanyName && !research)}
+            style={{
+              padding: "0.5rem 1rem", fontSize: 14,
+              background: researching ? "#888" : "#1f3a5f",
+              color: "white", border: "none", borderRadius: 4,
+              cursor: researching ? "wait" : "pointer",
+            }}
+          >
+            {researching
+              ? "researching (~10s)..."
+              : derivedCompanyName
+                ? `Research ${derivedCompanyName}`
+                : "Research"}
+          </button>
+          <input
+            type="text"
+            id="manualCompanyName"
+            placeholder="or enter company name"
+            style={{
+              padding: "0.4rem 0.6rem", fontSize: 13,
+              border: "1px solid #ccc", borderRadius: 4, width: 220,
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                const v = (e.target as HTMLInputElement).value;
+                runResearch(v);
+              }
+            }}
+          />
+        </div>
+        {research && (
+          <div
+            style={{
+              marginTop: 12, padding: 12, background: "#f9f9f9",
+              border: "1px solid #eee", borderRadius: 4, fontSize: 13,
+            }}
+          >
+            <div style={{ fontWeight: 600, marginBottom: 4 }}>
+              {research.companyName}
+            </div>
+            <p style={{ margin: "0 0 8px", lineHeight: 1.5 }}>
+              {research.summary}
+            </p>
+            {research.values.length > 0 && (
+              <div style={{ marginBottom: 6 }}>
+                <span style={{ fontWeight: 600 }}>Values: </span>
+                {research.values.join(", ")}
+              </div>
+            )}
+            {research.recentNews.length > 0 && (
+              <div style={{ marginBottom: 6 }}>
+                <span style={{ fontWeight: 600 }}>Recent news: </span>
+                <ul style={{ margin: "4px 0 0 18px", padding: 0 }}>
+                  {research.recentNews.map((n, i) => (
+                    <li key={i}>{n}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            {research.jdAlignment.length > 0 && (
+              <div style={{ marginBottom: 6 }}>
+                <span style={{ fontWeight: 600 }}>JD alignment: </span>
+                <ul style={{ margin: "4px 0 0 18px", padding: 0 }}>
+                  {research.jdAlignment.map((a, i) => (
+                    <li key={i}>{a}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+            <details style={{ marginTop: 8 }}>
+              <summary style={{ cursor: "pointer", fontSize: 12, color: "#666" }}>
+                sources ({research.sources.length})
+              </summary>
+              <ul style={{ margin: "4px 0 0 18px", padding: 0, fontSize: 11 }}>
+                {research.sources.map((s, i) => (
+                  <li key={i} style={{ marginBottom: 4 }}>
+                    <a href={s.url} target="_blank" rel="noopener noreferrer"
+                      style={{ color: "#1f3a5f" }}>
+                      {s.title}
+                    </a>
+                    <div style={{ color: "#888" }}>{s.excerpt.slice(0, 200)}...</div>
+                  </li>
+                ))}
+              </ul>
+            </details>
+          </div>
+        )}
+      </div>
 
       <div style={cardStyle}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: tailorResult ? 12 : 0 }}>
