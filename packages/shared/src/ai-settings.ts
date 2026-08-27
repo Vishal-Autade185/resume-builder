@@ -17,10 +17,14 @@ export type Provider = z.infer<typeof ProviderSchema>;
 
 /** Default model picks per provider. Users can override in settings. */
 export const DEFAULT_MODELS: Record<Provider, string> = {
-  gemini:    "gemini-2.5-flash",
-  openai:    "gpt-4o-mini",
+  // gemini-2.5-flash: works with thinkingBudget: 0 to skip the
+  //   internal-reasoning step (~2-4s per call). Free tier available.
+  //   The 'gemini-flash-lite-latest' alias is faster but quality drops;
+  //   we ship 2.5 for the quality baseline.
+  gemini: "gemini-2.5-flash",
+  openai: "gpt-4o-mini",
   anthropic: "claude-haiku-4-5",
-  nvidia:    "meta/llama-3.1-70b-instruct",
+  nvidia: "meta/llama-3.1-70b-instruct",
 };
 
 /** Per-provider env var names that hold the BYOK API key. */

@@ -16,9 +16,10 @@ import type {
   JobDescription,
   ProposedChange,
   AISettings,
+  ResumeStyle,
   Provider,
 } from "@resume-builder/shared";
-import { ProposedChangeSchema, PROVIDER_ENV_VAR } from "@resume-builder/shared";
+import { ProposedChangeSchema, PROVIDER_ENV_VAR, defaultResumeStyle } from "@resume-builder/shared";
 
 const GEMINI_ENDPOINT =
   "https://generativelanguage.googleapis.com/v1beta/models";
@@ -28,6 +29,14 @@ interface GeminiRequest {
   generationConfig: {
     temperature: number;
     responseMimeType: string;
+    // thinkingBudget=0 disables gemini 2.5+'s internal reasoning step.
+    // 2.5 flash defaults to ~5000 tokens of thinking, which adds 5-15s
+    // to every call. For 'click tailor' UX that's fine. For interactive
+    // / preview / repeated calls we'd want it off. Per product.md
+    // section 5 phase 3.5 we ship with thinking off by default; users
+    // who want better output can re-enable by editing this file or
+    // upgrading the model to gemini-2.5-pro with explicit thinkingConfig.
+    thinkingConfig?: { thinkingBudget?: number };
   };
 }
 
@@ -40,14 +49,23 @@ export async function callGeminiForTailoring(args: {
   bank: DataBank;
   apiKey: string;
   model: string;
+  style?: ResumeStyle;
 }): Promise<ProposedChange[]> {
-  const prompt = buildPrompt({ jd: args.jd, bank: args.bank });
+  const prompt = buildPrompt({
+    jd: args.jd,
+    bank: args.bank,
+    style: args.style ?? defaultResumeStyle(),
+  });
   const url = `${GEMINI_ENDPOINT}/${args.model}:generateContent`;
+  const isThinkingModel = args.model.startsWith("gemini-2.5");
   const req: GeminiRequest = {
     contents: [{ parts: [{ text: prompt }] }],
     generationConfig: {
       temperature: 0.2,
       responseMimeType: "application/json",
+      ...(isThinkingModel
+        ? { thinkingConfig: { thinkingBudget: 0 } }
+        : {}),
     },
   };
   const res = await fetch(url, {
@@ -73,7 +91,15 @@ export async function callGeminiForTailoring(args: {
  * The prompt. Kept structured so the model sees exactly the data bank
  * shape and produces a ProposedChange[] we can validate.
  */
-function buildPrompt({ jd, bank }: { jd: JobDescription; bank: DataBank }): string {
+function buildPrompt({
+  jd,
+  bank,
+  style,
+}: {
+  jd: JobDescription;
+  bank: DataBank;
+  style: ResumeStyle;
+}): string {
   // Pass only the data bank fields. Never include any LaTeX. The model can
   // rephrase the bullet strings but can't see the surrounding document.
   const bankForModel = {
@@ -126,7 +152,41 @@ ${jd.rawText}
 DATA BANK (source of truth - only these items exist):
 ${JSON.stringify(bankForModel, null, 2)}
 
-Now produce a JSON object with 3-8 high-impact changes that best tailor this resume to the JD.`;
+Now produce a JSON object with 3-8 high-impact changes that best tailor this resume to the JD.
+
+STYLE RULES (apply each if its toggle is on):
+${styleRulesBlock(style)}
+
+REMINDER: every change must follow the anti-hallucination rules above.`;
+}
+
+/** Style rules as prompt-injectable text. Only enabled rules are listed. */
+function styleRulesBlock(style: ResumeStyle): string {
+  const rules: string[] = [];
+  if (style.focusOnCore) {
+    rules.push(
+      "- focusOnCore: prefer deselect_* for items clearly off-topic; group select_* for items that directly map to the JD.",
+    );
+  }
+  if (style.quantify) {
+    rules.push(
+      "- quantify: every rewrite_experience_bullet / rewrite_project_description / rewrite_project_impact must include a number, percent, or other measurable outcome (count, time saved, accuracy, F1, etc.). If the source has no metric, keep the source text unchanged rather than fabric a number.",
+    );
+  }
+  if (style.noOrphans) {
+    rules.push(
+      "- noOrphans: prefer 2-3 sentence bullets over 1-liners; combine thin bullets into their parent's narrative instead of leaving orphaned single-line entries.",
+    );
+  }
+  if (style.ats) {
+    rules.push(
+      "- ats: rewrite bullets to start with a strong past-tense action verb (built, shipped, optimized, reduced, etc.). No tables, no graphics-only markers, no emoji.",
+    );
+  }
+  if (rules.length === 0) {
+    return "(no style rules active)";
+  }
+  return rules.join("\n");
 }
 
 /** Parse the model's JSON response and validate each change against the schema. */
@@ -166,6 +226,7 @@ export async function callAIForTailoring(args: {
   jd: JobDescription;
   bank: DataBank;
   settings: AISettings;
+  style?: ResumeStyle;
 }): Promise<ProposedChange[]> {
   const envVar = PROVIDER_ENV_VAR[args.provider];
   const apiKey = process.env[envVar];
@@ -181,6 +242,7 @@ export async function callAIForTailoring(args: {
         bank: args.bank,
         apiKey,
         model: args.settings.model,
+        style: args.style,
       });
     case "openai":
     case "anthropic":

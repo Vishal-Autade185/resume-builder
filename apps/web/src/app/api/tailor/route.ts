@@ -15,7 +15,7 @@
  */
 import { NextResponse } from "next/server";
 import type { DataBank, JobDescription } from "@resume-builder/shared";
-import { defaultAISettings } from "@resume-builder/shared";
+import { defaultAISettings, defaultResumeStyle } from "@resume-builder/shared";
 import { createServiceClient } from "@/lib/supabase-service";
 import {
   callAIForTailoring,
@@ -47,6 +47,21 @@ export async function POST(req: Request) {
         tier: settingsRow.tier as "cheap" | "strong",
       }
     : defaultAISettings();
+
+  // 1b. style toggles
+  const { data: styleRow } = await supabase
+    .from("resume_style_settings")
+    .select("*")
+    .eq("user_id", USER_ID)
+    .maybeSingle();
+  const style = styleRow
+    ? {
+        focusOnCore: styleRow.focus_on_core,
+        quantify: styleRow.quantify,
+        noOrphans: styleRow.no_orphans,
+        ats: styleRow.ats,
+      }
+    : defaultResumeStyle();
 
   // 2. jd
   const { data: jdRow, error: jdErr } = await supabase
@@ -96,6 +111,7 @@ export async function POST(req: Request) {
       jd,
       bank: dataBank,
       settings,
+      style,
     });
   } catch (e) {
     return NextResponse.json(

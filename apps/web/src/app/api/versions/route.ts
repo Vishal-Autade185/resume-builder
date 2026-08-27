@@ -117,6 +117,22 @@ export async function POST(req: Request) {
 
   // 3. Write the row (no pdfStoragePath yet).
   const id = randomUUID();
+  // Snapshot current style settings so the manual version carries the
+  // style toggles that were in effect when the user clicked save.
+  const { data: styleRow } = await supabase
+    .from("resume_style_settings")
+    .select("*")
+    .eq("user_id", USER_ID)
+    .maybeSingle();
+  const styleSnapshot = styleRow
+    ? {
+        focusOnCore: styleRow.focus_on_core,
+        quantify: styleRow.quantify,
+        noOrphans: styleRow.no_orphans,
+        ats: styleRow.ats,
+      }
+    : {};
+
   const { data: inserted, error: insertErr } = await supabase
     .from("resume_versions")
     .insert({
@@ -126,7 +142,7 @@ export async function POST(req: Request) {
       data_bank_snapshot: dataBankSnapshot,
       selection,
       template_id: templateId,
-      style_settings: {},
+      style_settings: styleSnapshot,
       pdf_storage_path: null,
     })
     .select()

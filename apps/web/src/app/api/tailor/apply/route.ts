@@ -144,6 +144,22 @@ export async function POST(req: Request) {
       else if (k === "achievements") selection.achievements = keep;
     }
 
+    // Snapshot current style settings so the version can re-apply them
+    // later (style_settings jsonb column on resume_versions).
+    const { data: styleRow } = await supabase
+      .from("resume_style_settings")
+      .select("*")
+      .eq("user_id", USER_ID)
+      .maybeSingle();
+    const styleSnapshot = styleRow
+      ? {
+          focusOnCore: styleRow.focus_on_core,
+          quantify: styleRow.quantify,
+          noOrphans: styleRow.no_orphans,
+          ats: styleRow.ats,
+        }
+      : {};
+
     const id = randomUUID();
     const versionInsert = await supabase.from("resume_versions").insert({
       id,
@@ -152,7 +168,7 @@ export async function POST(req: Request) {
       data_bank_snapshot: bank,
       selection,
       template_id: null,
-      style_settings: {},
+      style_settings: styleSnapshot,
       pdf_storage_path: null,
     });
     if (versionInsert.error) {
